@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Camera, RefreshCw, Download, Share2, Printer, X, CheckCircle2, AlertCircle, Layout as LayoutIcon, Sliders, ArrowRight, Home } from 'lucide-react';
@@ -291,7 +296,19 @@ export default function App() {
         img.onload = () => {
           ctx.save();
           applyFilter(ctx);
-          ctx.drawImage(img, x, y, frameWidth, frameHeight);
+          
+          // Implement object-fit: cover logic
+          const scale = Math.max(frameWidth / img.width, frameHeight / img.height);
+          const drawWidth = img.width * scale;
+          const drawHeight = img.height * scale;
+          const drawX = x + (frameWidth - drawWidth) / 2;
+          const drawY = y + (frameHeight - drawHeight) / 2;
+
+          ctx.beginPath();
+          ctx.rect(x, y, frameWidth, frameHeight);
+          ctx.clip();
+
+          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
           ctx.restore();
           resolve();
         };
@@ -798,7 +815,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Editing Panels */}
+            {/* Editing Panel */}
             <div className="lg:col-span-5 flex flex-col gap-6 lg:overflow-y-auto pr-2 pb-10 lg:pb-0 shrink-0">
               <div className="bento-card p-4 md:p-6 space-y-6 shrink-0">
                 <div>
@@ -806,7 +823,7 @@ export default function App() {
                    <div className="space-y-4">
                       <Select 
                         value={settings.filter} 
-                        onValueChange={(v) => v && setSettings({ ...settings, filter: v as FilterType })}
+                        onValueChange={(v: FilterType) => setSettings({ ...settings, filter: v })}
                       >
                         <SelectTrigger className="w-full h-12 border-2 border-slate-100 rounded-xl font-bold">
                           <SelectValue placeholder="Filter" />
