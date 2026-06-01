@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Camera, RefreshCw, Download, Share2, Printer, X, CheckCircle2, AlertCircle, Layout as LayoutIcon, Sliders, ArrowRight, Home } from 'lucide-react';
@@ -477,8 +472,8 @@ export default function App() {
                     <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
                       <Camera className="w-8 h-8 md:w-10 md:h-10" />
                     </div>
-                    <h1 className="text-5xl md:text-8xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 italic">
-                      SNAP_VIBE
+                    <h1 className="text-5xl md:text-6xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 uppercase">
+                      flash-booth
                     </h1>
                   </div>
                   <p className="text-sm md:text-2xl text-slate-500 font-medium max-w-2xl mx-auto uppercase tracking-widest opacity-60">
@@ -766,11 +761,11 @@ export default function App() {
                     ))}
                   </div>
 
-                  <div className="text-center space-y-1 py-4">
+                  <div className="text-center space-y-1 py-4 uppercase">
                      <div className={cn(
                        "text-2xl font-black italic tracking-tighter",
                        settings.frameColor === '#1a1a1a' || settings.frameColor === '#800000' || settings.frameColor === '#800020' ? 'text-white' : 'text-slate-900'
-                     )}>SNAP_VIBE</div>
+                     )}>flash-booth</div>
                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date().toLocaleDateString()}</div>
                   </div>
 
@@ -970,8 +965,8 @@ export default function App() {
           <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
             <Camera className="w-4 h-4 md:w-6 md:h-6" />
           </div>
-          <span className="font-black text-lg md:text-2xl tracking-tighter italic">
-            SNAP_VIBE
+          <span className="font-black text-lg md:text-2xl tracking-tighter uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+            flash-booth
           </span>
         </div>
         
@@ -1013,7 +1008,7 @@ export default function App() {
       <footer className="fixed bottom-4 left-4 z-50 pointer-events-none">
         <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-100 shadow-sm text-[10px] font-mono uppercase tracking-widest text-slate-400">
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          Powered by Justine Cadilo
+          Powered by Justine Cadilo | v1.0 | Under Development
         </div>
       </footer>
     </div>
