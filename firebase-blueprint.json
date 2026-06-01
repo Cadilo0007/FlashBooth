@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "PhotoStrip": {
+      "title": "Photo Strip",
+      "description": "A captured photo strip shared by a user.",
+      "type": "object",
+      "properties": {
+        "imageData": {
+          "type": "string",
+          "description": "Base64 encoded JPEG data of the photo strip."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the photo was shared."
+        },
+        "layout": {
+          "type": "string",
+          "enum": ["1x4", "2x2", "single"],
+          "description": "The layout used for the strip."
+        },
+        "filter": {
+          "type": "string",
+          "description": "The filter applied to the strip."
+        }
+      },
+      "required": ["imageData", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/photos/{photoId}": {
+      "schema": "PhotoStrip",
+      "description": "Publicly shared photo strips."
+    }
+  }
+}

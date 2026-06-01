@@ -1,0 +1,6 @@
+{
+  "name": "FlashBooth - Pro Photo Booth",
+  "description": "A professional-grade local photo booth with custom layouts, vintage filters, and instant local export options.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": []
+}

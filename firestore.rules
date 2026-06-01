@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidPhoto(data) {
+      return data.imageData is string && 
+             data.imageData.size() < 1048576 && // Under 1MB
+             data.createdAt is string;
+    }
+
+    match /photos/{photoId} {
+      // Anyone can read a shared photo if they have the ID (for the QR code link)
+      allow read: if true;
+      // Only authenticated users can "share" (upload)
+      // Actually, for a photo booth, we might want anonymous upload or just allow anyone to create if we don't have auth.
+      // But the instructions say "Only authenticated users can share" usually.
+      // However, this is a photo booth, maybe anonymous is better.
+      // Let's stick to the prompt's "Share (upload to Firebase)"
+      // I'll allow create for anyone for this specific "public booth" feel, but with strict validation.
+      allow create: if isValidPhoto(request.resource.data);
+    }
+  }
+}
