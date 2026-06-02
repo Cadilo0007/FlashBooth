@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Camera, RefreshCw, Download, Share2, Printer, X, CheckCircle2, AlertCircle, Layout as LayoutIcon, Sliders, ArrowRight, Home } from 'lucide-react';
@@ -12,7 +17,6 @@ import { cn } from '@/lib/utils';
 
 // --- Constants ---
 const IDLE_TIMEOUT = 60000; // 1 minute
-const COUNTDOWN_START = 3;
 
 const FRAME_COLORS = [
   { name: 'White', value: '#FFFFFF' },
@@ -33,13 +37,151 @@ const FRAME_COLORS = [
 
 const STICKER_OPTIONS = ['✨', '💖', '🔥', '📸', '⭐', '🎈', '🎉', '🌈', '🍦', '🍕', '🕶️', '👑', '🎸', '🍔', '🚀'];
 
+interface LayoutConfig {
+  id: LayoutType;
+  name: string;
+  sub: string;
+  shotCount: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  previewClassScale: string;
+}
+
+const LAYOUT_CONFIGS: LayoutConfig[] = [
+  {
+    id: '2x6_3',
+    name: '2X6″ Photostrip',
+    sub: '3 Portrait Snaps',
+    shotCount: 3,
+    canvasWidth: 580,
+    canvasHeight: 1435,
+    previewClassScale: 'grid-cols-1 w-[220px]'
+  },
+  {
+    id: '2x6_4',
+    name: '2X6″ Classic Strip',
+    sub: '4 Standard Snaps',
+    shotCount: 4,
+    canvasWidth: 580,
+    canvasHeight: 1850,
+    previewClassScale: 'grid-cols-1 w-[220px]'
+  },
+  {
+    id: '4x6_6',
+    name: '4X6″ Party Grid',
+    sub: '6 Album Snaps',
+    shotCount: 6,
+    canvasWidth: 1120,
+    canvasHeight: 1435,
+    previewClassScale: 'grid-cols-2 w-[400px]'
+  },
+  {
+    id: '4x6_single_p',
+    name: '4X6″ Portrait Polaroid',
+    sub: '1 High-Quality Snap',
+    shotCount: 1,
+    canvasWidth: 800,
+    canvasHeight: 1200,
+    previewClassScale: 'grid-cols-1 w-[280px]'
+  },
+  {
+    id: '4x6_single_l',
+    name: '4X6″ Landscape Poster',
+    sub: '1 Wide Snap',
+    shotCount: 1,
+    canvasWidth: 1200,
+    canvasHeight: 800,
+    previewClassScale: 'grid-cols-1 w-[400px]'
+  },
+  {
+    id: '4x6_triple',
+    name: '4X6″ Triple Panel',
+    sub: '3 Elegant Columns',
+    shotCount: 3,
+    canvasWidth: 1200,
+    canvasHeight: 800,
+    previewClassScale: 'grid-cols-3 w-[440px]'
+  },
+  {
+    id: 'single',
+    name: 'Classic Single',
+    sub: '1 Standard Landscape Photo',
+    shotCount: 1,
+    canvasWidth: 1200,
+    canvasHeight: 850,
+    previewClassScale: 'grid-cols-1 w-[380px]'
+  }
+];
+
+const getLayoutGridStyles = (layout: LayoutType) => {
+  switch (layout) {
+    case '2x6_3':
+      return {
+        className: "grid grid-cols-1 gap-3 w-[200px] md:w-[220px]",
+        itemAspect: "aspect-[4/3]",
+      };
+    case '2x6_4':
+    case '1x4':
+      return {
+        className: "grid grid-cols-1 gap-2 md:gap-3 w-[200px] md:w-[220px]",
+        itemAspect: "aspect-[4/3]",
+      };
+    case '4x6_6':
+    case '2x2':
+      return {
+        className: "grid grid-cols-2 gap-2 md:gap-3 w-[360px] md:w-[400px]",
+        itemAspect: "aspect-[4/3]",
+      };
+    case '4x6_single_p':
+      return {
+        className: "grid grid-cols-1 gap-0 w-[260px] md:w-[300px]",
+        itemAspect: "aspect-[3/4]",
+      };
+    case '4x6_single_l':
+    case 'single':
+      return {
+        className: "grid grid-cols-1 gap-0 w-[360px] md:w-[400px]",
+        itemAspect: "aspect-[4/3]",
+      };
+    case '4x6_triple':
+      return {
+        className: "grid grid-cols-3 gap-2 w-[400px] md:w-[460px]",
+        itemAspect: "aspect-[3/5]",
+      };
+    default:
+      return {
+        className: "grid grid-cols-1 gap-3 w-[220px]",
+        itemAspect: "aspect-[4/3]",
+      };
+  }
+};
+
+const getCameraAspectClass = (layout: LayoutType) => {
+  switch (layout) {
+    case '4x6_single_p':
+      return 'aspect-[3/4] max-w-sm h-[400px] md:h-[520px]';
+    case '4x6_triple':
+      return 'aspect-[3/5] max-w-xs h-[420px] md:h-[560px]';
+    case '2x6_3':
+    case '2x6_4':
+    case '1x4':
+    case '4x6_6':
+    case '2x2':
+    case '4x6_single_l':
+    case 'single':
+    default:
+      return 'aspect-[4/3] max-w-5xl w-full';
+  }
+};
+
 export default function App() {
   const [state, setState] = useState<AppState>('idle');
   const [settings, setSettings] = useState<BoothSettings>({
-    layout: '1x4',
+    layout: '2x6_4',
     filter: 'none',
     shotCount: 4,
     frameColor: '#FFFFFF',
+    timerDuration: 3,
   });
   const [frames, setFrames] = useState<PhotoFrame[]>([]);
   const [stickers, setStickers] = useState<StickerInstance[]>([]);
@@ -164,7 +306,7 @@ export default function App() {
         // Short delay to ensure exposure/focus settles
         await new Promise(r => setTimeout(r, 800));
         
-        setCountdown(COUNTDOWN_START);
+        setCountdown(settings.timerDuration);
         setCurrentShot(0);
         setFrames([]);
         setState('waiting');
@@ -179,7 +321,7 @@ export default function App() {
   };
 
   const startCaptureLoop = () => {
-    setCountdown(COUNTDOWN_START);
+    setCountdown(settings.timerDuration);
     setCurrentShot(0);
     setFrames([]);
   };
@@ -229,7 +371,7 @@ export default function App() {
       if (nextShot < settings.shotCount) {
         setTimeout(() => {
           setState('countdown');
-          setCountdown(3); 
+          setCountdown(settings.timerDuration); 
         }, 1000);
       } else {
         setTimeout(() => {
@@ -247,29 +389,17 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const frameWidth = 600;
-    const frameHeight = 450;
-    const padding = 40;
-    const headerHeight = 100;
-    const footerHeight = 150;
+    let currentLayout = settings.layout;
+    if (currentLayout === '1x4') currentLayout = '2x6_4';
+    else if (currentLayout === '2x2') currentLayout = '4x6_6';
 
-    let totalWidth = 0;
-    let totalHeight = 0;
-
-    if (settings.layout === '1x4') {
-      totalWidth = frameWidth + padding * 2;
-      totalHeight = (frameHeight * capturedFrames.length) + (padding * (capturedFrames.length + 1)) + footerHeight;
-    } else if (settings.layout === '2x2') {
-      totalWidth = (frameWidth * 2) + (padding * 3);
-      totalHeight = (frameHeight * 2) + (padding * 3) + footerHeight;
-    } else {
-      totalWidth = frameWidth + padding * 2;
-      totalHeight = frameHeight + padding * 2 + footerHeight;
-    }
+    const activeLayout = LAYOUT_CONFIGS.find(c => c.id === currentLayout) || LAYOUT_CONFIGS[1];
+    
+    const totalWidth = activeLayout.canvasWidth;
+    const totalHeight = activeLayout.canvasHeight;
 
     canvas.width = totalWidth;
     canvas.height = totalHeight;
-    const canvasScale = 1; // Base internal resolution scale
 
     // Background
     ctx.fillStyle = settings.frameColor;
@@ -285,7 +415,7 @@ export default function App() {
       }
     };
 
-    const drawFrame = (frame: PhotoFrame, x: number, y: number) => {
+    const drawFrame = (frame: PhotoFrame, x: number, y: number, w: number, h: number) => {
       return new Promise<void>((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -293,14 +423,14 @@ export default function App() {
           applyFilter(ctx);
           
           // Implement object-fit: cover logic
-          const scale = Math.max(frameWidth / img.width, frameHeight / img.height);
+          const scale = Math.max(w / img.width, h / img.height);
           const drawWidth = img.width * scale;
           const drawHeight = img.height * scale;
-          const drawX = x + (frameWidth - drawWidth) / 2;
-          const drawY = y + (frameHeight - drawHeight) / 2;
+          const drawX = x + (w - drawWidth) / 2;
+          const drawY = y + (h - drawHeight) / 2;
 
           ctx.beginPath();
-          ctx.rect(x, y, frameWidth, frameHeight);
+          ctx.rect(x, y, w, h);
           ctx.clip();
 
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
@@ -311,18 +441,58 @@ export default function App() {
       });
     };
 
-    if (settings.layout === '1x4') {
-      for (let i = 0; i < capturedFrames.length; i++) {
-        await drawFrame(capturedFrames[i], padding, padding + i * (frameHeight + padding));
+    // Draw each frame with its specific x, y, width, height coordinate
+    if (activeLayout.id === '2x6_3') {
+      const w = 500;
+      const h = 375;
+      const pad = 40;
+      for (let i = 0; i < Math.min(capturedFrames.length, 3); i++) {
+        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
       }
-    } else if (settings.layout === '2x2') {
-      for (let i = 0; i < capturedFrames.length; i++) {
+    } else if (activeLayout.id === '2x6_4') {
+      const w = 500;
+      const h = 375;
+      const pad = 40;
+      for (let i = 0; i < Math.min(capturedFrames.length, 4); i++) {
+        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
+      }
+    } else if (activeLayout.id === '4x6_6') {
+      const w = 500;
+      const h = 375;
+      const pad = 40;
+      for (let i = 0; i < Math.min(capturedFrames.length, 6); i++) {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        await drawFrame(capturedFrames[i], padding + col * (frameWidth + padding), padding + row * (frameHeight + padding));
+        await drawFrame(capturedFrames[i], pad + col * (w + pad), pad + row * (h + pad), w, h);
+      }
+    } else if (activeLayout.id === '4x6_single_p') {
+      const w = 680;
+      const h = 820;
+      if (capturedFrames[0]) {
+        await drawFrame(capturedFrames[0], 60, 60, w, h);
+      }
+    } else if (activeLayout.id === '4x6_single_l' || activeLayout.id === 'single') {
+      const w = 1040;
+      const h = 550;
+      if (capturedFrames[0]) {
+        await drawFrame(capturedFrames[0], 80, 80, w, h);
+      }
+    } else if (activeLayout.id === '4x6_triple') {
+      const w = 340;
+      const h = 560;
+      const startX = 55;
+      const gap = 35;
+      for (let i = 0; i < Math.min(capturedFrames.length, 3); i++) {
+        await drawFrame(capturedFrames[i], startX + i * (w + gap), 50, w, h);
       }
     } else {
-      await drawFrame(capturedFrames[0], padding, padding);
+      // General fallback
+      const w = 500;
+      const h = 375;
+      const pad = 40;
+      for (let i = 0; i < capturedFrames.length; i++) {
+        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
+      }
     }
 
     // Draw Stickers onto Canvas
@@ -472,8 +642,8 @@ export default function App() {
                     <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3">
                       <Camera className="w-8 h-8 md:w-10 md:h-10" />
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 uppercase">
-                      flash-booth
+                    <h1 className="text-5xl md:text-8xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 italic">
+                      SNAP_VIBE
                     </h1>
                   </div>
                   <p className="text-sm md:text-2xl text-slate-500 font-medium max-w-2xl mx-auto uppercase tracking-widest opacity-60">
@@ -516,57 +686,145 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.98 }} 
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col h-full max-w-2xl mx-auto p-4 md:p-10 gap-6 justify-center"
+            className="h-full w-full overflow-y-auto scrollbar-thin bg-slate-50/20"
           >
-            <div className="flex flex-col gap-2 text-center">
-              <div className="bento-tag w-fit mx-auto">01. Setup</div>
-              <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-none uppercase italic">Select Layout</h2>
-            </div>
+            <div className="flex flex-col max-w-2xl mx-auto p-4 md:p-10 pb-28 gap-6 min-h-full justify-start md:justify-center">
+              <div className="flex flex-col gap-2 text-center">
+                <div className="bento-tag w-fit mx-auto">01. Setup</div>
+                <h2 className="text-3xl md:text-4xl font-black tracking-tight leading-none uppercase italic">Select Layout</h2>
+              </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              {(['1x4', '2x2', 'single'] as LayoutType[]).map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setSettings({ ...settings, layout: l, shotCount: l === '1x4' ? 4 : l === '2x2' ? 4 : 1 })}
-                  className={cn(
-                    "relative p-4 md:p-6 rounded-[24px] md:rounded-[32px] border-2 transition-all duration-300 flex flex-col items-center gap-2 md:gap-4 text-center",
-                    settings.layout === l ? "border-blue-500 bg-blue-50/50 shadow-xl shadow-blue-500/10" : "border-slate-100 hover:border-slate-200 bg-white"
-                  )}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                {LAYOUT_CONFIGS.map((cfg) => {
+                  const isSelected = settings.layout === cfg.id;
+                  return (
+                    <button
+                      key={cfg.id}
+                      onClick={() => setSettings({ 
+                        ...settings, 
+                        layout: cfg.id, 
+                        shotCount: cfg.shotCount 
+                      })}
+                      className={cn(
+                        "relative p-3 md:p-5 rounded-[24px] border-2 transition-all duration-300 flex flex-col items-center gap-2 text-center",
+                        isSelected ? "border-blue-500 bg-blue-50/50 shadow-xl shadow-blue-500/10" : "border-slate-100 hover:border-slate-200 bg-white"
+                      )}
+                    >
+                      {/* Miniature visual mockup based on layout */}
+                      <div className={cn(
+                        "border border-slate-900 bg-white p-1 shadow-sm shrink-0 flex flex-col justify-between overflow-hidden rounded",
+                        cfg.id.startsWith('2x6') ? "w-[44px] h-[92px]" : "w-[76px] h-[58px]"
+                      )}>
+                        {cfg.id === '2x6_3' && (
+                          <div className="flex flex-col gap-1 h-full">
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="h-1 w-6 bg-slate-300 rounded-sm mx-auto shrink-0 mt-auto" />
+                          </div>
+                        )}
+                        {cfg.id === '2x6_4' && (
+                          <div className="flex flex-col gap-0.5 h-full">
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                            <div className="h-0.5 w-6 bg-slate-300 rounded-sm mx-auto shrink-0 mt-auto" />
+                          </div>
+                        )}
+                        {cfg.id === '4x6_6' && (
+                          <div className="grid grid-cols-2 grid-rows-3 gap-0.5 h-full w-full">
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                          </div>
+                        )}
+                        {cfg.id === '4x6_single_p' && (
+                          <div className="flex flex-col gap-1 h-full w-full">
+                            <div className="flex-[3] bg-slate-200 rounded-sm" />
+                            <div className="flex-1 flex items-center justify-center">
+                              <div className="h-1 w-6 bg-slate-300 rounded-sm" />
+                            </div>
+                          </div>
+                        )}
+                        {(cfg.id === '4x6_single_l' || cfg.id === 'single') && (
+                          <div className="flex flex-col h-full w-full">
+                            <div className="flex-1 bg-slate-200 rounded-sm" />
+                          </div>
+                        )}
+                        {cfg.id === '4x6_triple' && (
+                          <div className="grid grid-cols-3 gap-0.5 h-full w-full">
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                            <div className="bg-slate-200 rounded-sm" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 mt-1">
+                        <span className="text-[11px] md:text-sm font-black uppercase tracking-tight block italic leading-tight">{cfg.name}</span>
+                        <span className="text-[9px] text-slate-400 font-bold block mt-0.5">{cfg.sub}</span>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white shadow">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Timer Selector Duration */}
+              <div className="flex flex-col gap-2 text-center mt-2 p-4 bg-slate-50 border border-slate-100 rounded-3xl">
+                <span className="text-xs font-black uppercase italic tracking-widest text-slate-400">02. Timer Speed</span>
+                <div className="flex justify-center gap-3 mt-1">
+                  {[3, 5, 10].map((sec) => (
+                    <Button
+                      key={sec}
+                      variant={settings.timerDuration === sec ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, timerDuration: sec })}
+                      className={cn(
+                        "rounded-full px-5 py-2 font-black italic text-xs h-9",
+                        settings.timerDuration === sec ? "bg-blue-600 hover:bg-blue-700 text-white" : "border-slate-200 text-slate-600 bg-white"
+                      )}
+                    >
+                      {sec}S Timer
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Design Sizes details */}
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-3xl flex flex-col gap-1.5 text-xs text-slate-500 font-medium leading-relaxed">
+                <span className="font-black uppercase text-slate-700 block italic leading-none mb-1">📐 Layout Template Dimensions for Design</span>
+                <p>For custom cover templates, please design using these dimensions (at 300 DPI):</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[11px] font-mono">
+                  <div>• 2x6" Strip (3/4 Photos): <span className="text-blue-600 font-bold">1200 x 3600 px</span></div>
+                  <div>• 4x6" Grid (6 Photos): <span className="text-blue-600 font-bold">1800 x 1200 px</span></div>
+                  <div>• 4x6" Polaroid (Single P): <span className="text-blue-600 font-bold">1200 x 1800 px</span></div>
+                  <div>• 4x6" Landscape (Single L): <span className="text-blue-600 font-bold">1800 x 1200 px</span></div>
+                  <div>• 4x6" Columns (3 Photos): <span className="text-blue-600 font-bold">1800 x 1200 px</span></div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-2">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setState('idle')} 
+                  className="h-12 md:h-16 px-6 md:px-10 text-gray-400 font-bold text-sm md:text-lg uppercase tracking-widest"
                 >
-                  <div className={cn(
-                    "grid gap-1 border-2 border-slate-900 p-1 bg-white shadow-lg shrink-0",
-                    l === '1x4' ? "grid-cols-1 w-10 md:w-12" : l === '2x2' ? "grid-cols-2 w-12 md:w-14" : "grid-cols-1 w-14 md:w-16 aspect-video",
-                  )}>
-                    {Array.from({ length: l === '1x4' ? 4 : l === '2x2' ? 4 : 1 }).map((_, i) => (
-                      <div key={i} className="aspect-square bg-slate-100/50" />
-                    ))}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm md:text-xl font-black uppercase tracking-tight block italic">{l}</span>
-                  </div>
-                  {settings.layout === l && (
-                    <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-6 h-6 md:w-8 md:h-8 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg">
-                      <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-4 mt-2">
-              <Button 
-                variant="ghost" 
-                onClick={() => setState('idle')} 
-                className="h-12 md:h-16 px-6 md:px-10 text-gray-400 font-bold text-sm md:text-lg uppercase tracking-widest"
-              >
-                BACK
-              </Button>
-              <Button 
-                onClick={startCamera} 
-                className="flex-1 h-12 md:h-16 bg-gray-900 text-white text-base md:text-xl font-black uppercase italic shadow-xl shadow-gray-900/10"
-              >
-                START SESSION <ArrowRight className="ml-2 md:ml-4 w-5 h-5 md:w-6 md:h-6" />
-              </Button>
+                  BACK
+                </Button>
+                <Button 
+                  onClick={startCamera} 
+                  className="flex-1 h-12 md:h-16 bg-gray-900 text-white text-base md:text-xl font-black uppercase italic shadow-xl shadow-gray-900/10"
+                >
+                  START SESSION <ArrowRight className="ml-2 md:ml-4 w-5 h-5 md:w-6 md:h-6" />
+                </Button>
+              </div>
             </div>
           </motion.div>
         );
@@ -577,10 +835,41 @@ export default function App() {
       case 'capturing':
         return (
           <div className={cn(
-            "relative h-full flex flex-col items-center justify-center p-4 md:p-12 transition-transform duration-100",
+            "relative h-full flex flex-col items-center justify-center p-4 md:p-8 xl:p-12 transition-transform duration-100 max-h-screen overflow-y-auto bg-slate-50/20",
             isShaking && "shake"
           )}>
-            <div className="relative w-full max-w-6xl aspect-[4/3] md:aspect-video bg-black rounded-3xl md:rounded-[40px] overflow-hidden shadow-2xl border-4 md:border-[12px] border-white group">
+            {/* Beautiful Outside Countdown Panel */}
+            <AnimatePresence mode="wait">
+              {state === 'countdown' && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  className="mb-4 text-center z-20 shrink-0"
+                >
+                  <div className="bg-red-500 text-white font-black uppercase tracking-[0.2em] text-[10px] md:text-xs px-4 py-1.5 rounded-full inline-flex items-center gap-2 shadow-xl shadow-red-500/30 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-white block animate-ping" />
+                    CAMERAS READY
+                  </div>
+                  <div className="flex items-center justify-center gap-3 mt-2">
+                    <span className="text-2xl md:text-3xl font-black italic uppercase tracking-tight text-slate-800">CAPTURE IN</span>
+                    <motion.span 
+                      key={countdown}
+                      initial={{ scale: 1.4, rotate: -3 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      className="text-4xl md:text-5xl font-black text-blue-600 font-mono bg-white border border-blue-100 shadow-md px-4 md:px-5 py-1 rounded-xl block"
+                    >
+                      {countdown > 0 ? `${countdown}s` : "SMILE! 📸"}
+                    </motion.span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className={cn(
+              "relative bg-black rounded-3xl md:rounded-[40px] overflow-hidden shadow-2xl border-4 md:border-[12px] border-white group transition-all duration-300",
+              getCameraAspectClass(settings.layout)
+            )}>
               <video 
                 ref={videoRef} 
                 autoPlay 
@@ -593,7 +882,7 @@ export default function App() {
                 )} 
               />
               
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
+              {/* No dark shadow overlay anymore! Keeping the camera feed perfectly bright & beautiful */}
 
               {state === 'camera-init' && (
                 <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm flex flex-col items-center justify-center space-y-6 z-40">
@@ -617,14 +906,14 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/20 backdrop-blur-[2px]"
+                  className="absolute inset-0 flex flex-col items-center justify-center z-30 bg-black/10 backdrop-blur-[1px]"
                 >
                   <Button
                     onClick={() => {
-                      setCountdown(COUNTDOWN_START);
+                      setCountdown(settings.timerDuration);
                       setState('countdown');
                     }}
-                    className="w-40 h-40 rounded-full bg-white text-gray-900 shadow-[0_0_50px_rgba(255,255,255,0.5)] hover:scale-110 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 group"
+                    className="w-40 h-40 rounded-full bg-white text-gray-900 shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 group"
                   >
                     <div className="w-32 h-32 rounded-full border-4 border-gray-900/10 flex items-center justify-center">
                       <Camera className="w-12 h-12 text-blue-600 group-hover:rotate-12 transition-transform" />
@@ -633,7 +922,7 @@ export default function App() {
                   <motion.p 
                     animate={{ y: [0, 5, 0] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="text-white font-black italic uppercase tracking-[0.3em] mt-8 drop-shadow-lg"
+                    className="text-white font-black italic uppercase tracking-[0.3em] mt-8 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
                   >
                     Tap to Snaps
                   </motion.p>
@@ -661,15 +950,13 @@ export default function App() {
               <AnimatePresence mode="wait">
                 {state === 'countdown' && (
                   <motion.div
-                    key={countdown}
-                    initial={{ y: 40, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -40, opacity: 0 }}
-                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute bottom-4 right-4 md:bottom-10 md:right-10 flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-full border border-red-500/30 text-white font-bold text-[10px] md:text-xs tracking-wider uppercase"
                   >
-                    <span className="text-[14rem] font-black text-white leading-none drop-shadow-2xl">
-                      {countdown > 0 ? countdown : "SMILE!"}
-                    </span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shrink-0" />
+                    <span>REC ● {countdown}s</span>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -677,28 +964,59 @@ export default function App() {
               {state === 'capturing' && (
                 <div className="absolute inset-0 bg-white z-50 animate-flash" />
               )}
+            </div>
 
-              <div className="absolute bottom-10 inset-x-0 flex justify-center gap-6">
-                <Button 
-                  variant="ghost"
-                  onClick={() => setIsMirrored(!isMirrored)}
-                  className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-xl text-white hover:bg-white/20 border border-white/10"
-                >
-                  <RefreshCw className={cn("w-7 h-7 transition-transform", isMirrored && "rotate-180")} />
-                </Button>
-                {frames.length > 0 && (
-                  <div className="flex -space-x-4">
+            {/* Collected Snapshots Previews & Controls Spacious Area Outside! */}
+            <div className="mt-6 flex flex-col items-center gap-5 w-full max-w-xl shrink-0">
+              {frames.length > 0 && (
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <span className="text-[10px] uppercase tracking-[0.2em] font-black italic text-slate-400">Captured Snaps ({frames.length} / {settings.shotCount})</span>
+                  <div className="flex gap-2.5 p-3 bg-white border border-slate-100 rounded-[24px] shadow-lg justify-center flex-wrap max-w-md">
                     {frames.map((f, i) => (
-                      <motion.img 
-                        initial={{ scale: 0, rotate: -20 }}
-                        animate={{ scale: 1, rotate: 0 }}
-                        key={i} 
-                        src={f.dataUrl} 
-                        className="w-32 h-20 object-cover rounded-xl border-4 border-white shadow-2xl" 
-                      />
+                      <motion.div
+                        initial={{ scale: 0, y: 10 }}
+                        animate={{ scale: 1, y: 0 }}
+                        key={i}
+                        className="relative"
+                      >
+                        <img 
+                          src={f.dataUrl} 
+                          className="w-20 h-15 md:w-24 md:h-18 object-cover rounded-xl border-2 border-slate-50 shadow-md hover:scale-105 transition-transform" 
+                        />
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg border border-white">
+                          {i + 1}
+                        </span>
+                      </motion.div>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* Outside Action Controls */}
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="outline"
+                  onClick={() => setIsMirrored(!isMirrored)}
+                  className="rounded-full bg-white hover:bg-slate-50 border-slate-200 text-slate-700 font-bold px-5 py-2.5 h-11 shadow-sm flex items-center gap-2 text-xs md:text-sm transition-all"
+                >
+                  <RefreshCw className={cn("w-4 h-4 text-blue-500 transition-transform duration-300", isMirrored && "rotate-180")} />
+                  Mirror Cam
+                </Button>
+
+                <Button 
+                  variant="ghost"
+                  onClick={() => {
+                    // Turn off camera tracks
+                    if (videoRef.current && videoRef.current.srcObject) {
+                      const stream = videoRef.current.srcObject as MediaStream;
+                      stream.getTracks().forEach(track => track.stop());
+                    }
+                    setState('setup');
+                  }}
+                  className="rounded-full text-slate-500 hover:text-red-500 hover:bg-red-50 hover:border-red-100 border border-transparent font-bold px-5 py-2.5 h-11 text-xs md:text-sm transition-all"
+                >
+                  Exit Session
+                </Button>
               </div>
             </div>
           </div>
@@ -742,12 +1060,9 @@ export default function App() {
                   className="relative shadow-2xl transition-all duration-500 p-4 md:p-6 flex flex-col items-center gap-4 md:gap-6 bg-white shrink-0"
                   style={{ backgroundColor: settings.frameColor }}
                 >
-                  <div className={cn(
-                    "grid gap-4",
-                    settings.layout === '2x2' ? 'grid-cols-2 max-w-[440px]' : 'grid-cols-1 w-[260px]'
-                  )}>
+                  <div className={getLayoutGridStyles(settings.layout).className}>
                     {frames.map((f) => (
-                      <div key={f.id} className="relative overflow-hidden aspect-[4/3] shadow-inner bg-slate-50">
+                      <div key={f.id} className={cn("relative overflow-hidden shadow-inner bg-slate-50 transition-all duration-300", getLayoutGridStyles(settings.layout).itemAspect)}>
                         <img 
                           src={f.dataUrl} 
                           className={cn(
@@ -761,11 +1076,11 @@ export default function App() {
                     ))}
                   </div>
 
-                  <div className="text-center space-y-1 py-4 uppercase">
+                  <div className="text-center space-y-1 py-4">
                      <div className={cn(
                        "text-2xl font-black italic tracking-tighter",
                        settings.frameColor === '#1a1a1a' || settings.frameColor === '#800000' || settings.frameColor === '#800020' ? 'text-white' : 'text-slate-900'
-                     )}>flash-booth</div>
+                     )}>FLASHBOOTH</div>
                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date().toLocaleDateString()}</div>
                   </div>
 
@@ -965,8 +1280,8 @@ export default function App() {
           <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
             <Camera className="w-4 h-4 md:w-6 md:h-6" />
           </div>
-          <span className="font-black text-lg md:text-2xl tracking-tighter uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
-            flash-booth
+          <span className="font-black text-lg md:text-2xl tracking-tighter italic">
+            SNAP_VIBE
           </span>
         </div>
         
@@ -1008,7 +1323,7 @@ export default function App() {
       <footer className="fixed bottom-4 left-4 z-50 pointer-events-none">
         <div className="flex items-center gap-2 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full border border-slate-100 shadow-sm text-[10px] font-mono uppercase tracking-widest text-slate-400">
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          Powered by Justine Cadilo | v1.0 | Under Development
+          Powered by Justine Cadilo
         </div>
       </footer>
     </div>
