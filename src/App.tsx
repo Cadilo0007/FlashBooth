@@ -20,6 +20,7 @@ const IDLE_TIMEOUT = 60000; // 1 minute
 
 const FRAME_COLORS = [
   { name: 'White', value: '#FFFFFF' },
+  { name: 'Beige Studio', value: '#F3EFE9' },
   { name: 'Black', value: '#1a1a1a' },
   { name: 'Pink', value: '#FF477E' },
   { name: 'Green', value: '#4ADE80' },
@@ -105,10 +106,10 @@ const LAYOUT_CONFIGS: LayoutConfig[] = [
   {
     id: 'single',
     name: 'Classic Single',
-    sub: '1 Standard Landscape Photo',
+    sub: '1 Standard Square Photo',
     shotCount: 1,
-    canvasWidth: 1200,
-    canvasHeight: 850,
+    canvasWidth: 1000,
+    canvasHeight: 1220,
     previewClassScale: 'grid-cols-1 w-[380px]'
   }
 ];
@@ -138,10 +139,14 @@ const getLayoutGridStyles = (layout: LayoutType) => {
         itemAspect: "aspect-[3/4]",
       };
     case '4x6_single_l':
-    case 'single':
       return {
         className: "grid grid-cols-1 gap-0 w-[360px] md:w-[400px]",
         itemAspect: "aspect-[4/3]",
+      };
+    case 'single':
+      return {
+        className: "grid grid-cols-1 gap-0 w-[300px] md:w-[340px]",
+        itemAspect: "aspect-square",
       };
     case '4x6_triple':
       return {
@@ -157,21 +162,8 @@ const getLayoutGridStyles = (layout: LayoutType) => {
 };
 
 const getCameraAspectClass = (layout: LayoutType) => {
-  switch (layout) {
-    case '4x6_single_p':
-      return 'aspect-[3/4] max-w-sm h-[400px] md:h-[520px]';
-    case '4x6_triple':
-      return 'aspect-[3/5] max-w-xs h-[420px] md:h-[560px]';
-    case '2x6_3':
-    case '2x6_4':
-    case '1x4':
-    case '4x6_6':
-    case '2x2':
-    case '4x6_single_l':
-    case 'single':
-    default:
-      return 'aspect-[4/3] max-w-5xl w-full';
-  }
+  // Always spacious standard landscape feed to ensure maximum comfort and high quality preview feedback
+  return 'aspect-[4/3] w-full max-w-lg md:max-w-4xl h-auto';
 };
 
 export default function App() {
@@ -180,8 +172,13 @@ export default function App() {
     layout: '2x6_4',
     filter: 'none',
     shotCount: 4,
-    frameColor: '#FFFFFF',
+    frameColor: '#F3EFE9',
     timerDuration: 3,
+    brandingText: 'MEMORIES',
+    brandingPosition: 'top',
+    roundedPhotos: true,
+    photoCornerRadius: 24,
+    customBgImage: null,
   });
   const [frames, setFrames] = useState<PhotoFrame[]>([]);
   const [stickers, setStickers] = useState<StickerInstance[]>([]);
@@ -194,10 +191,34 @@ export default function App() {
   const [isMirrored, setIsMirrored] = useState(true);
   const [isShaking, setIsShaking] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(420);
+  const [isDemoCamera, setIsDemoCamera] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const simulatedIntervalRef = useRef<any>(null);
+  const currentShotRef = useRef(0);
+
+  // Sync currentShot status in a ref to avoid stale closures in virtual camera rendering intervals
+  useEffect(() => {
+    currentShotRef.current = currentShot;
+  }, [currentShot]);
+
+  // Keep template preview layout width dynamically synchronized
+  useEffect(() => {
+    const el = document.getElementById('live-composite');
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [state, finalImage]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -216,7 +237,282 @@ export default function App() {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    if (simulatedIntervalRef.current) {
+      clearInterval(simulatedIntervalRef.current);
+      simulatedIntervalRef.current = null;
+    }
+    setIsDemoCamera(false);
   }, []);
+
+  const createSimulatedCameraStream = (): MediaStream => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d')!;
+    
+    let frame = 0;
+    
+    const draw = () => {
+      frame++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Determine what to draw based on currentShotRef.current
+      const activePose = (currentShotRef.current % 4) + 1;
+      
+      if (activePose === 1) {
+        // --- POSE 1: Retro Sunset ---
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#100C18');
+        grad.addColorStop(0.5, '#4E2445');
+        grad.addColorStop(1, '#813C58');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw sun
+        ctx.fillStyle = '#E8842E';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height * 0.6, 180 + Math.sin(frame * 0.05) * 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Sun lines
+        ctx.fillStyle = '#4E2445';
+        for (let y = canvas.height * 0.45; y < canvas.height * 0.85; y += 18) {
+          const h = 4 + (y - canvas.height * 0.45) * 0.15;
+          ctx.fillRect(0, y, canvas.width, h);
+        }
+        
+        // Palm silhouette
+        ctx.fillStyle = '#100C18';
+        ctx.beginPath();
+        ctx.ellipse(canvas.width * 0.2, canvas.height * 0.8, 150, 40, 0.1, 0, Math.PI * 2);
+        ctx.ellipse(canvas.width * 0.8, canvas.height * 0.8, 200, 50, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Text
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("POSE 1: TROPICAL SUNSET", canvas.width / 2, canvas.height * 0.15);
+        ctx.fillStyle = '#E8842E';
+        ctx.font = 'bold 18px "JetBrains Mono", monospace';
+        ctx.fillText("[ SMILE AND POSE FOR THE SHOT 📸 ]", canvas.width / 2, canvas.height * 0.22);
+        
+      } else if (activePose === 2) {
+        // --- POSE 2: Synthwave Grid ---
+        ctx.fillStyle = '#0B0014';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Neon horizon grid lines radiating
+        ctx.strokeStyle = '#D92688';
+        ctx.lineWidth = 2;
+        const horizonPointerY = canvas.height * 0.55;
+        
+        // Draw grid vertical lines
+        for (let x = -400; x <= canvas.width + 400; x += 100) {
+          ctx.beginPath();
+          ctx.moveTo(canvas.width / 2, horizonPointerY);
+          ctx.lineTo(x + Math.sin(frame * 0.01) * 20, canvas.height);
+          ctx.stroke();
+        }
+        
+        // Draw grid horizontal lines
+        for (let i = 0; i < 15; i++) {
+          const y = horizonPointerY + Math.pow(i / 15, 2) * (canvas.height - horizonPointerY);
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+        
+        // Glowing Neon Mountains
+        ctx.fillStyle = '#11052C';
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, horizonPointerY);
+        ctx.lineTo(250, horizonPointerY - 120);
+        ctx.lineTo(500, horizonPointerY);
+        ctx.lineTo(750, horizonPointerY - 180);
+        ctx.lineTo(1000, horizonPointerY);
+        ctx.lineTo(1280, horizonPointerY - 80);
+        ctx.lineTo(1280, horizonPointerY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Custom branding
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("POSE 2: NEON SPECTRUN", canvas.width / 2, canvas.height * 0.15);
+        ctx.fillStyle = '#00F0FF';
+        ctx.font = 'bold 18px "JetBrains Mono", monospace';
+        ctx.fillText("[ STRIKE A COOL RETRO POSE 😎 ]", canvas.width / 2, canvas.height * 0.22);
+        
+      } else if (activePose === 3) {
+        // --- POSE 3: Memphis Pastel Abstract ---
+        ctx.fillStyle = '#F4EEFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Colorful floating geometric bodies
+        const angle = frame * 0.02;
+        
+        ctx.save();
+        ctx.translate(canvas.width * 0.3, canvas.height * 0.5);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#FF4A4A';
+        ctx.fillRect(-80, -80, 160, 160);
+        ctx.restore();
+        
+        ctx.save();
+        ctx.translate(canvas.width * 0.7, canvas.height * 0.45);
+        ctx.rotate(-angle * 1.5);
+        ctx.fillStyle = '#30E3DF';
+        ctx.beginPath();
+        ctx.moveTo(0, -90);
+        ctx.lineTo(77, 45);
+        ctx.lineTo(-77, 45);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        
+        ctx.fillStyle = '#FCE38A';
+        ctx.beginPath();
+        ctx.arc(canvas.width * 0.5, canvas.height * 0.65 + Math.sin(frame * 0.05) * 30, 70, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Black grid points overlay
+        ctx.fillStyle = '#364F6B';
+        for (let x = 30; x < canvas.width; x += 80) {
+          for (let y = 30; y < canvas.height; y += 80) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        
+        ctx.fillStyle = '#364F6B';
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("POSE 3: MEMPHIS GEOMETRICS", canvas.width / 2, canvas.height * 0.15);
+        ctx.fillStyle = '#FF4A4A';
+        ctx.font = 'bold 18px "JetBrains Mono", monospace';
+        ctx.fillText("[ SHOW SOME LOVE ❤️ ]", canvas.width / 2, canvas.height * 0.22);
+        
+      } else {
+        // --- POSE 4: Cyber Matrix Terminal ---
+        ctx.fillStyle = '#020A05';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Matrix grid
+        ctx.strokeStyle = 'rgba(0, 255, 65, 0.1)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += 40) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
+        for (let y = 0; y < canvas.height; y += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+        
+        // Draw matrix glyphs
+        ctx.fillStyle = '#00FF41';
+        ctx.font = '12px "JetBrains Mono", monospace';
+        ctx.textAlign = 'left';
+        for (let x = 20; x < canvas.width; x += 60) {
+          const streamY = (frame * 5 + (x * 123)) % (canvas.height + 100);
+          const chars = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ1023456789";
+          const char = chars[Math.floor(Math.sin(x + frame * 0.05) * 10 + 20) % chars.length];
+          ctx.fillText(char, x, streamY);
+          ctx.fillText(chars[(char.charCodeAt(0) + 1) % chars.length], x, (streamY - 20 + canvas.height) % canvas.height);
+          ctx.fillText(chars[(char.charCodeAt(0) + 2) % chars.length], x, (streamY - 40 + canvas.height) % canvas.height);
+        }
+        
+        // Cyber eye grid
+        ctx.strokeStyle = '#00FF41';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(canvas.width * 0.35, canvas.height * 0.3, canvas.width * 0.3, canvas.height * 0.4);
+        
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 28px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("POSE 4: CYBER LENS INTEGRATOR", canvas.width / 2, canvas.height * 0.15);
+        ctx.fillStyle = '#00FF41';
+        ctx.font = 'bold 18px "JetBrains Mono", monospace';
+        ctx.fillText("[ SYSTEM INTEGRATION STABLE 🤖 ]", canvas.width / 2, canvas.height * 0.22);
+      }
+      
+      // Draw standard viewfinder overlay on top of all simulated frames to make it look active
+      ctx.strokeStyle = '#00FFA3';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2 - 20, canvas.height / 2);
+      ctx.lineTo(canvas.width / 2 + 20, canvas.height / 2);
+      ctx.moveTo(canvas.width / 2, canvas.height / 2 - 20);
+      ctx.lineTo(canvas.width / 2, canvas.height / 2 + 20);
+      ctx.stroke();
+      
+      const borderPad = 40;
+      const markerSize = 30;
+      ctx.lineWidth = 3;
+      
+      ctx.beginPath();
+      ctx.moveTo(borderPad, borderPad + markerSize);
+      ctx.lineTo(borderPad, borderPad);
+      ctx.lineTo(borderPad + markerSize, borderPad);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(canvas.width - borderPad, borderPad + markerSize);
+      ctx.lineTo(canvas.width - borderPad, borderPad);
+      ctx.lineTo(canvas.width - borderPad - markerSize, borderPad);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(borderPad, canvas.height - borderPad - markerSize);
+      ctx.lineTo(borderPad, canvas.height - borderPad);
+      ctx.lineTo(borderPad + markerSize, canvas.height - borderPad);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(canvas.width - borderPad, canvas.height - borderPad - markerSize);
+      ctx.lineTo(canvas.width - borderPad, canvas.height - borderPad);
+      ctx.lineTo(canvas.width - borderPad - markerSize, canvas.height - borderPad);
+      ctx.stroke();
+      
+      if (Math.floor(frame / 15) % 2 === 0) {
+        ctx.fillStyle = '#FF0055';
+        ctx.beginPath();
+        ctx.arc(borderPad + 20, borderPad + 20, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 14px "JetBrains Mono", monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText("REC [SIMULATED FEED]", borderPad + 40, borderPad + 24);
+      
+      ctx.textAlign = 'right';
+      ctx.fillText("FPS: 30.0", canvas.width - borderPad - 10, borderPad + 24);
+      ctx.fillText("VIRTUAL LENS v1.0", canvas.width - borderPad - 10, borderPad + 44);
+    };
+    
+    if (simulatedIntervalRef.current) clearInterval(simulatedIntervalRef.current);
+    simulatedIntervalRef.current = setInterval(draw, 1000 / 30);
+    draw();
+    
+    try {
+      return (canvas as any).captureStream(30);
+    } catch (e) {
+      // Final resilient fallback for environments without captureStream support
+      return new MediaStream();
+    }
+  };
 
   const resetToIdle = useCallback(() => {
     setState('idle');
@@ -273,15 +569,34 @@ export default function App() {
     try {
       setError(null);
       setState('camera-init');
+      setIsDemoCamera(false);
       
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      let stream: MediaStream;
+
+      // We race the real webcam request against a 2.5 second timeout to prevent blocking/hanging
+      const cameraPromise = navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: 'user',
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         } 
       });
-      streamRef.current = stream;
+
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Hardware access timed out after 2500ms")), 2500)
+      );
+
+      try {
+        stream = await Promise.race([cameraPromise, timeoutPromise]);
+        streamRef.current = stream;
+        setIsDemoCamera(false);
+      } catch (e) {
+        console.warn("Real webcam initialized failed or timed out. Falling back to Simulated Virtual Camera Stream:", e);
+        stream = createSimulatedCameraStream();
+        streamRef.current = stream;
+        setIsDemoCamera(true);
+        toast.info("Using Virtual Lens (Simulated Mode) since device camera is unavailable.");
+      }
       
       // Wait for video ref to be available (react render)
       let attempts = 0;
@@ -300,7 +615,7 @@ export default function App() {
             videoRef.current?.play().then(resolve).catch(resolve);
           };
           // Fallback
-          setTimeout(resolve, 2000);
+          setTimeout(resolve, 1500);
         });
 
         // Short delay to ensure exposure/focus settles
@@ -314,9 +629,24 @@ export default function App() {
         throw new Error("Video element not found");
       }
     } catch (err) {
-      console.error(err);
-      setError("Camera access denied or no device found. Please check permissions.");
-      setState('error');
+      console.error("Critical error starting camera:", err);
+      // Absolute fallback to simulated stream to prevent any hang or freeze under all conditions!
+      try {
+        const fallbackStream = createSimulatedCameraStream();
+        streamRef.current = fallbackStream;
+        setIsDemoCamera(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.play().catch(() => {});
+        }
+        setCountdown(settings.timerDuration);
+        setCurrentShot(0);
+        setFrames([]);
+        setState('waiting');
+      } catch (innerErr) {
+        setError("Unable to start real or simulated video source.");
+        setState('error');
+      }
     }
   };
 
@@ -377,14 +707,14 @@ export default function App() {
         setTimeout(() => {
           setState('processing');
           stopCamera();
-          processImages([...frames, newFrame]);
+          processImages([...frames, newFrame], false);
         }, 1000);
       }
     }
   };
 
   // --- Image Processing ---
-  const processImages = async (capturedFrames: PhotoFrame[]): Promise<string | undefined> => {
+  const processImages = async (capturedFrames: PhotoFrame[], includeStickers = true): Promise<string | undefined> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -401,9 +731,40 @@ export default function App() {
     canvas.width = totalWidth;
     canvas.height = totalHeight;
 
+    const preset = settings.selectedPresetTemplate ?? 'none';
+    const isPresetActive = preset !== 'none';
+
     // Background
-    ctx.fillStyle = settings.frameColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (settings.customBgImage && settings.customBgMode !== 'overlay') {
+      await new Promise<void>((resolve) => {
+        const bgImg = new Image();
+        bgImg.onload = () => {
+          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+          resolve();
+        };
+        bgImg.onerror = () => {
+          ctx.fillStyle = settings.frameColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          resolve();
+        };
+        bgImg.src = settings.customBgImage!;
+      });
+    } else {
+      if (preset === 'retro-ticket') {
+        ctx.fillStyle = '#F3EFE9'; // Retro warm ivory ticket
+      } else if (preset === 'exclusive') {
+        ctx.fillStyle = '#FFFFFF'; // Editorial crisp white
+      } else if (preset === 'saycheese-receipt') {
+        ctx.fillStyle = '#F5F5F0'; // Receipt thermal paper off-white
+      } else if (preset === 'spotify') {
+        ctx.fillStyle = '#121212'; // Music player sleek dark black
+      } else if (preset === 'wedding-blue') {
+        ctx.fillStyle = '#162E4E'; // Elegant royal navy blue
+      } else {
+        ctx.fillStyle = settings.frameColor;
+      }
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     // Apply Filter to context
     const applyFilter = (context: CanvasRenderingContext2D) => {
@@ -430,7 +791,20 @@ export default function App() {
           const drawY = y + (h - drawHeight) / 2;
 
           ctx.beginPath();
-          ctx.rect(x, y, w, h);
+          if (settings.roundedPhotos) {
+            const r = settings.photoCornerRadius ?? 24;
+            if (typeof ctx.roundRect === 'function') {
+              ctx.roundRect(x, y, w, h, r);
+            } else {
+              ctx.moveTo(x + r, y);
+              ctx.arcTo(x + w, y, x + w, y + h, r);
+              ctx.arcTo(x + w, y + h, x, y + h, r);
+              ctx.arcTo(x, y + h, x, y, r);
+              ctx.arcTo(x, y, x + w, y, r);
+            }
+          } else {
+            ctx.rect(x, y, w, h);
+          }
           ctx.clip();
 
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
@@ -441,85 +815,668 @@ export default function App() {
       });
     };
 
+    const brandingPos = settings.brandingPosition ?? 'bottom';
+    const hasTopText = brandingPos === 'top' || brandingPos === 'both';
+    const hasBottomText = brandingPos === 'bottom' || brandingPos === 'both';
+
+    // Track frame rendering boxes for layout-aware elements
+    const drawnPhotosBounds: { x: number; y: number; w: number; h: number }[] = [];
+
     // Draw each frame with its specific x, y, width, height coordinate
     if (activeLayout.id === '2x6_3') {
-      const w = 500;
-      const h = 375;
-      const pad = 40;
+      let w = 500;
+      let h = 375;
+      let pad = 40;
+      let startY = hasTopText ? 150 : 40;
+      let drawX = 40;
+
+      if (isPresetActive) {
+        w = 460;
+        h = 345;
+        pad = 22;
+        startY = 200;
+        drawX = 60;
+      }
+
       for (let i = 0; i < Math.min(capturedFrames.length, 3); i++) {
-        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
+        const px = drawX;
+        const py = startY + i * (h + pad);
+        drawnPhotosBounds.push({ x: px, y: py, w, h });
+        await drawFrame(capturedFrames[i], px, py, w, h);
       }
     } else if (activeLayout.id === '2x6_4') {
-      const w = 500;
-      const h = 375;
-      const pad = 40;
+      let w = 500;
+      let h = 375;
+      let pad = 40;
+      let startY = hasTopText ? 150 : 40;
+      let drawX = 40;
+
+      if (isPresetActive) {
+        w = 460;
+        h = 345;
+        pad = 22;
+        startY = 205;
+        drawX = 60;
+      }
+
       for (let i = 0; i < Math.min(capturedFrames.length, 4); i++) {
-        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
+        const px = drawX;
+        const py = startY + i * (h + pad);
+        drawnPhotosBounds.push({ x: px, y: py, w, h });
+        await drawFrame(capturedFrames[i], px, py, w, h);
       }
     } else if (activeLayout.id === '4x6_6') {
-      const w = 500;
-      const h = 375;
-      const pad = 40;
+      let w = 500;
+      let h = 375;
+      let pad = 40;
+      let startY = hasTopText ? 130 : 40;
+
+      if (isPresetActive) {
+        w = 480;
+        h = 360;
+        pad = 32;
+        startY = 180;
+      }
+
       for (let i = 0; i < Math.min(capturedFrames.length, 6); i++) {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        await drawFrame(capturedFrames[i], pad + col * (w + pad), pad + row * (h + pad), w, h);
+        const colX = isPresetActive ? (65 + col * (w + pad)) : (pad + col * (w + pad));
+        const py = startY + row * (h + pad);
+        drawnPhotosBounds.push({ x: colX, y: py, w, h });
+        await drawFrame(capturedFrames[i], colX, py, w, h);
       }
     } else if (activeLayout.id === '4x6_single_p') {
-      const w = 680;
-      const h = 820;
-      if (capturedFrames[0]) {
-        await drawFrame(capturedFrames[0], 60, 60, w, h);
+      let w = 680;
+      let h = 820;
+      let startY = hasTopText ? 160 : 60;
+      let drawX = 60;
+
+      if (isPresetActive) {
+        w = 660;
+        h = 790;
+        startY = 200;
+        drawX = 70;
       }
-    } else if (activeLayout.id === '4x6_single_l' || activeLayout.id === 'single') {
-      const w = 1040;
-      const h = 550;
+
       if (capturedFrames[0]) {
-        await drawFrame(capturedFrames[0], 80, 80, w, h);
+        drawnPhotosBounds.push({ x: drawX, y: startY, w, h });
+        await drawFrame(capturedFrames[0], drawX, startY, w, h);
+      }
+    } else if (activeLayout.id === '4x6_single_l') {
+      let w = 1040;
+      let h = 550;
+      let startY = hasTopText ? 130 : 80;
+      let drawX = 80;
+
+      if (isPresetActive) {
+        w = 1000;
+        h = 520;
+        startY = 180;
+        drawX = 100;
+      }
+
+      if (capturedFrames[0]) {
+        drawnPhotosBounds.push({ x: drawX, y: startY, w, h });
+        await drawFrame(capturedFrames[0], drawX, startY, w, h);
+      }
+    } else if (activeLayout.id === 'single') {
+      let w = 840;
+      let h = 840;
+      let startY = hasTopText ? 160 : 80;
+      let drawX = 80;
+
+      if (isPresetActive) {
+        w = 800;
+        h = 800;
+        startY = 200;
+        drawX = 100;
+      }
+
+      if (capturedFrames[0]) {
+        drawnPhotosBounds.push({ x: drawX, y: startY, w, h });
+        await drawFrame(capturedFrames[0], drawX, startY, w, h);
       }
     } else if (activeLayout.id === '4x6_triple') {
-      const w = 340;
-      const h = 560;
-      const startX = 55;
-      const gap = 35;
+      let w = 340;
+      let h = 560;
+      let startX = 55;
+      let gap = 35;
+      let startY = hasTopText ? 110 : 50;
+
+      if (isPresetActive) {
+        w = 320;
+        h = 520;
+        startX = 75;
+        gap = 30;
+        startY = 160;
+      }
+
       for (let i = 0; i < Math.min(capturedFrames.length, 3); i++) {
-        await drawFrame(capturedFrames[i], startX + i * (w + gap), 50, w, h);
+        const px = startX + i * (w + gap);
+        drawnPhotosBounds.push({ x: px, y: startY, w, h });
+        await drawFrame(capturedFrames[i], px, startY, w, h);
       }
     } else {
       // General fallback
-      const w = 500;
-      const h = 375;
-      const pad = 40;
+      let w = 500;
+      let h = 375;
+      let pad = 40;
+      let startY = hasTopText ? 150 : 40;
+      let drawX = pad;
+
+      if (isPresetActive) {
+        w = 460;
+        h = 345;
+        startY = 200;
+        drawX = 60;
+        pad = 22;
+      }
+
       for (let i = 0; i < capturedFrames.length; i++) {
-        await drawFrame(capturedFrames[i], pad, pad + i * (h + pad), w, h);
+        const py = startY + i * (h + pad);
+        drawnPhotosBounds.push({ x: drawX, y: py, w, h });
+        await drawFrame(capturedFrames[i], drawX, py, w, h);
       }
     }
 
     // Draw Stickers onto Canvas
-    for (const s of stickers) {
-      ctx.save();
-      ctx.translate(canvas.width * s.x, canvas.height * s.y);
-      ctx.rotate((s.rotation * Math.PI) / 180);
-      ctx.font = `${80 * s.scale}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(s.emoji, 0, 0);
-      ctx.restore();
+    if (includeStickers) {
+      const baseFontSize = activeLayout.id.startsWith('2x6') ? 36 : 64;
+      const designWidth = activeLayout.id.startsWith('2x6') ? 240 : 420;
+
+      for (const s of stickers) {
+        ctx.save();
+        ctx.translate(canvas.width * s.x, canvas.height * s.y);
+        ctx.rotate((s.rotation * Math.PI) / 180);
+        
+        const canvasFontSize = baseFontSize * s.scale * (canvas.width / designWidth);
+        ctx.font = `bold ${canvasFontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(s.emoji, 0, 0);
+        ctx.restore();
+      }
     }
 
-    // Footer Branding
-    ctx.fillStyle = settings.frameColor === '#1a1a1a' || settings.frameColor === '#800000' || settings.frameColor === '#800020' ? '#ffffff' : '#1a1a1a';
-    ctx.font = 'bold 40px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('FLASHBOOTH', canvas.width / 2, canvas.height - 80);
-    ctx.font = '24px Inter, sans-serif';
-    ctx.fillStyle = '#666666';
-    ctx.fillText(new Date().toLocaleDateString(), canvas.width / 2, canvas.height - 40);
+    // Real boundary heights for perfect scaling
+    const photoMinY = drawnPhotosBounds.length > 0 ? Math.min(...drawnPhotosBounds.map(b => b.y)) : 200;
+    const photoMaxY = drawnPhotosBounds.length > 0 ? Math.max(...drawnPhotosBounds.map(b => b.y + b.h)) : canvas.height - 200;
+    const headerHeight = photoMinY;
+    const footerHeight = canvas.height - photoMaxY;
+
+    // Custom Branding Design Drawing
+    const drawBrandingText = (yPos: number, isTop: boolean) => {
+      ctx.save();
+      const isDarkBg = ['#1a1a1a', '#800000', '#800020', '#64748b'].includes(settings.frameColor.toLowerCase());
+      ctx.fillStyle = isDarkBg ? '#FFFFFF' : '#1A1A1A';
+      
+      const textVal = (settings.brandingText || 'MEMORIES').toUpperCase();
+      
+      if ('letterSpacing' in ctx) {
+        // @ts-ignore
+        ctx.letterSpacing = '10px';
+      }
+      
+      ctx.font = '500 36px "Inter", "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(textVal, canvas.width / 2, yPos);
+      
+      ctx.font = '20px "JetBrains Mono", monospace';
+      ctx.fillStyle = isDarkBg ? '#a1a1aa' : '#64748b';
+      if ('letterSpacing' in ctx) {
+        // @ts-ignore
+        ctx.letterSpacing = '3px';
+      }
+      const dateText = new Date().toLocaleDateString();
+      ctx.fillText(dateText, canvas.width / 2, isTop ? yPos + 45 : yPos + 40);
+      ctx.restore();
+    };
+
+    // Draw Premium Theme Presets if selected (Adapted to scale dynamically)
+    const drawPremiumPreset = () => {
+      if (preset === 'none') return;
+      
+      ctx.save();
+      
+      const isTicket = preset === 'retro-ticket';
+      const isReceipt = preset === 'saycheese-receipt';
+      const isExclusive = preset === 'exclusive';
+      const isWedding = preset === 'wedding-blue';
+      const isSpotify = preset === 'spotify';
+
+      const textVal = (settings.brandingText || 'MEMORIES').toUpperCase();
+
+      if (isTicket) {
+        // Reddish vintage ticket stub markings 
+        // Dash margin is proportional to canvas width
+        const dashedMargin = Math.max(20, canvas.width * 0.06);
+
+        ctx.strokeStyle = '#8B2635';
+        ctx.lineWidth = Math.max(2, canvas.width * 0.005);
+        ctx.setLineDash([8, 6]);
+        
+        ctx.beginPath();
+        ctx.moveTo(dashedMargin, 0);
+        ctx.lineTo(dashedMargin, canvas.height);
+        ctx.moveTo(canvas.width - dashedMargin, 0);
+        ctx.lineTo(canvas.width - dashedMargin, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]); // reset
+
+        // Ticket side circles (Notch cutouts) using genuine canvas transparency so they look brilliant on any backgrounds!
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = '#000000'; // any color works under destination-out to write transparency
+        
+        const cutoutRadius = Math.max(15, canvas.width * 0.043);
+        const uniqueYLevels = Array.from(new Set(drawnPhotosBounds.map(b => b.y))).sort((a,b) => a - b);
+        const notchesY: number[] = [];
+        
+        // 1. Header cutout centered in headerSpace
+        if (headerHeight > cutoutRadius * 2) {
+          notchesY.push(headerHeight / 2);
+        }
+        
+        // 2. Inter-photo row cutouts centered inside layout gaps (guarantees zero image clashing!)
+        for (let j = 0; j < uniqueYLevels.length - 1; j++) {
+          const currentY = uniqueYLevels[j];
+          const sameRowY = drawnPhotosBounds.filter(b => b.y === currentY);
+          const currentBottom = Math.max(...sameRowY.map(b => b.y + b.h));
+          const nextTop = uniqueYLevels[j + 1];
+          const gapCenter = (currentBottom + nextTop) / 2;
+          notchesY.push(gapCenter);
+        }
+        
+        // 3. Footer cutout centered in footerSpace
+        if (footerHeight > cutoutRadius * 2.5) {
+          notchesY.push(photoMaxY + footerHeight * 0.5);
+        }
+
+        // Draw side notched arches
+        for (const yVal of notchesY) {
+          ctx.beginPath();
+          ctx.arc(0, yVal, cutoutRadius, 0, Math.PI * 2);
+          ctx.arc(canvas.width, yVal, cutoutRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        // Stars at header & footer
+        ctx.fillStyle = '#8B2635';
+        const starsScale = Math.min(1.0, canvas.width / 580);
+        ctx.font = `${Math.max(12, Math.floor(24 * starsScale))}px "Inter", sans-serif`;
+        ctx.textAlign = 'center';
+        
+        // Draw Stars centered in header space above photos, and centered in footer space below photos
+        if (headerHeight > 50) {
+          ctx.fillText('★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★', canvas.width / 2, headerHeight * 0.38);
+        }
+        
+        // Draw stars and title dynamically
+        if (headerHeight > 100) {
+          // Header Title
+          ctx.fillStyle = '#2C1B18';
+          ctx.font = `bold ${Math.max(18, Math.floor(36 * starsScale))}px "Georgia", serif`;
+          ctx.fillText('L E N S B O X', canvas.width / 2, headerHeight * 0.62);
+          ctx.font = `${Math.max(8, Math.floor(13 * starsScale))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = '#8B2635';
+          ctx.fillText('p h o t o b o o t h', canvas.width / 2, headerHeight * 0.78);
+        } else if (headerHeight > 40) {
+          ctx.fillStyle = '#2C1B18';
+          ctx.font = `bold ${Math.max(14, Math.floor(24 * starsScale))}px "Georgia", serif`;
+          ctx.fillText('L E N S B O X', canvas.width / 2, headerHeight * 0.7);
+        }
+
+        const scaleFooter = Math.min(1.0, footerHeight / 190);
+        if (footerHeight > 40) {
+          ctx.fillStyle = '#8B2635';
+          ctx.font = `${Math.max(12, Math.floor(24 * scaleFooter * starsScale))}px "Inter", sans-serif`;
+          ctx.fillText('★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★', canvas.width / 2, photoMaxY + footerHeight * 0.18);
+        }
+
+        // Barcode at standard ticket stubs
+        if (footerHeight > 110) {
+          const barcodeH = Math.max(30, Math.floor(60 * scaleFooter));
+          const barcodeY = photoMaxY + footerHeight * 0.38;
+          const barcodeW = Math.min(canvas.width - 100, Math.floor(340 * scaleFooter));
+          const barcodeX = (canvas.width - barcodeW) / 2;
+          ctx.fillStyle = '#2C1B18';
+          
+          let currX = barcodeX;
+          const pattern = [2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 2, 1, 3, 1, 2, 4, 1, 2];
+          while (currX < barcodeX + barcodeW) {
+            for (const bar of pattern) {
+              if (currX + bar > barcodeX + barcodeW) break;
+              ctx.fillRect(currX, barcodeY, bar * 1.5 * scaleFooter, barcodeH);
+              currX += (bar * 1.5 * scaleFooter) + 3 * scaleFooter;
+            }
+          }
+          ctx.font = `${Math.max(10, Math.floor(15 * scaleFooter))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = '#2C1B18';
+          ctx.fillText('3 5  4 6 8 9  5 0 1 8  7 8 4', canvas.width / 2, barcodeY + barcodeH + Math.max(15, 20 * scaleFooter));
+        }
+      }
+
+      if (isExclusive) {
+        ctx.fillStyle = '#1A1A1A';
+        ctx.textAlign = 'center';
+        
+        const scaleExclusive = Math.min(1.0, headerHeight / 200);
+
+        if (headerHeight > 60) {
+          // Stretched editorial heading EXCLUSIVE
+          ctx.font = `900 ${Math.max(36, Math.floor(75 * scaleExclusive))}px "Georgia", serif`;
+          ctx.save();
+          ctx.translate(canvas.width / 2, headerHeight * 0.5);
+          ctx.scale(0.85, 1.3);
+          ctx.fillText('EXCLUSIVE', 0, 0);
+          ctx.restore();
+        }
+
+        // Subheader separators
+        if (headerHeight > 140) {
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#1A1A1A';
+          ctx.fillStyle = '#1A1A1A';
+          ctx.font = 'bold 12px "JetBrains Mono", monospace';
+          
+          const centerLineY = headerHeight * 0.85;
+          ctx.beginPath();
+          ctx.moveTo(40, centerLineY);
+          ctx.lineTo(110, centerLineY);
+          ctx.moveTo(canvas.width - 110, centerLineY);
+          ctx.lineTo(canvas.width - 40, centerLineY);
+          ctx.stroke();
+
+          ctx.fillText('08/08   •   POSE, CLICK, REPEAT   •   2026', canvas.width / 2, centerLineY + 4);
+        }
+
+        // Dynamic footer lines
+        if (footerHeight > 40) {
+          ctx.font = 'bold 15px "JetBrains Mono", monospace';
+          ctx.fillStyle = '#1A1A1A';
+          ctx.fillText(textVal + '     ✦     ' + textVal + '     ✦     ' + textVal, canvas.width / 2, photoMaxY + footerHeight / 2);
+        }
+      }
+
+      if (isReceipt) {
+        // High fidelity receipt format
+        ctx.fillStyle = '#1E1E1E';
+        ctx.textAlign = 'center';
+
+        const scaleReceiptHeader = Math.min(1.0, headerHeight / 180);
+        
+        if (headerHeight > 80) {
+          ctx.font = `900 ${Math.max(18, Math.floor(36 * scaleReceiptHeader))}px "JetBrains Mono", monospace`;
+          if ('letterSpacing' in ctx) { (ctx as any).letterSpacing = '1px'; }
+          ctx.fillText(textVal || 'SAYCHEESE MART', canvas.width / 2, headerHeight * 0.35);
+          
+          ctx.font = `${Math.max(9, Math.floor(14 * scaleReceiptHeader))}px "JetBrains Mono", monospace`;
+          if ('letterSpacing' in ctx) { (ctx as any).letterSpacing = '0px'; }
+          ctx.fillText('Mataram, Nusa Tenggara Barat', canvas.width / 2, headerHeight * 0.55);
+          ctx.fillText('Tel. (0370) 111234', canvas.width / 2, headerHeight * 0.68);
+        } else if (headerHeight > 40) {
+          ctx.font = `900 ${Math.max(14, Math.floor(24 * scaleReceiptHeader))}px "JetBrains Mono", monospace`;
+          ctx.fillText(textVal || 'SAYCHEESE MART', canvas.width / 2, headerHeight * 0.6);
+        }
+
+        // Receipt dashes line
+        const drawReceiptDash = (y: number) => {
+          ctx.save();
+          ctx.strokeStyle = '#3A3A3A';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.moveTo(35, y);
+          ctx.lineTo(canvas.width - 35, y);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        if (headerHeight > 130) {
+          drawReceiptDash(headerHeight * 0.78);
+        }
+        
+        if (headerHeight > 165) {
+          ctx.textAlign = 'left';
+          ctx.font = '12px "JetBrains Mono", monospace';
+          ctx.fillText('DATE: ' + new Date().toLocaleDateString(), 40, headerHeight * 0.88);
+          ctx.textAlign = 'right';
+          ctx.fillText('INVOICE NO: #' + Math.floor(100000 + Math.random() * 900000), canvas.width - 40, headerHeight * 0.88);
+          
+          drawReceiptDash(headerHeight * 0.96);
+        }
+
+        // Bottom receipt lines
+        const scaleReceipt = Math.min(1.0, footerHeight / 240);
+        
+        if (footerHeight > 40) {
+          const fDash1 = photoMaxY + footerHeight * 0.05;
+          drawReceiptDash(fDash1);
+          
+          ctx.font = `bold ${Math.max(9, Math.floor(14 * scaleReceipt))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = '#1E1E1E';
+          
+          if (footerHeight > 100) {
+            ctx.textAlign = 'left';
+            ctx.fillText('1 X PHOTOSTRIP SUPERIOR', 45, photoMaxY + footerHeight * 0.18);
+            ctx.textAlign = 'right';
+            ctx.fillText('RP. 25.000', canvas.width - 45, photoMaxY + footerHeight * 0.18);
+
+            ctx.textAlign = 'left';
+            ctx.font = `${Math.max(8, Math.floor(13 * scaleReceipt))}px "JetBrains Mono", monospace`;
+            ctx.fillText('  (+) XTRA GLAM FLUSH', 45, photoMaxY + footerHeight * 0.28);
+            ctx.textAlign = 'right';
+            ctx.fillText('RP.      0', canvas.width - 45, photoMaxY + footerHeight * 0.28);
+
+            ctx.fillText('  (+) XTRA SMILE', 45, photoMaxY + footerHeight * 0.38);
+            ctx.textAlign = 'right';
+            ctx.fillText('RP.      0', canvas.width - 45, photoMaxY + footerHeight * 0.38);
+          }
+
+          const fDash2 = photoMaxY + footerHeight * 0.48;
+          drawReceiptDash(fDash2);
+
+          if (footerHeight > 140) {
+            ctx.font = `bold ${Math.max(10, Math.floor(16 * scaleReceipt))}px "JetBrains Mono", monospace`;
+            ctx.textAlign = 'left';
+            ctx.fillText('TOTAL AMOUNT PAID', 45, photoMaxY + footerHeight * 0.58);
+            ctx.textAlign = 'right';
+            ctx.fillText('RP. 25.000', canvas.width - 45, photoMaxY + footerHeight * 0.58);
+          }
+
+          if (footerHeight > 170) {
+            ctx.textAlign = 'center';
+            ctx.font = `bold ${Math.max(8, Math.floor(13 * scaleReceipt))}px "JetBrains Mono", monospace`;
+            ctx.fillText('* THANK YOU & COME BACK SOON *', canvas.width / 2, photoMaxY + footerHeight * 0.72);
+          }
+
+          // Barcode
+          if (footerHeight > 90) {
+            const barH = Math.max(15, 25 * scaleReceipt);
+            const barY = photoMaxY + footerHeight * 0.82;
+            const barW = Math.min(canvas.width - 100, Math.floor(380 * scaleReceipt));
+            const barX = (canvas.width - barW) / 2;
+            ctx.fillStyle = '#000000';
+            let currX = barX;
+            const pattern = [1, 2, 1, 3, 1, 1, 2, 4, 1, 1, 3, 2, 1, 3, 2, 1];
+            while (currX < barX + barW) {
+              for (const width of pattern) {
+                if (currX + width > barX + barW) break;
+                ctx.fillRect(currX, barY, width * scaleReceipt, barH);
+                currX += (width * scaleReceipt) + 2 * scaleReceipt;
+              }
+            }
+            if (footerHeight > 210) {
+              ctx.font = '10px "JetBrains Mono", monospace';
+              ctx.fillText('@saycheese.booth', canvas.width / 2, barY + barH + 15);
+            }
+          }
+        }
+      }
+
+      if (isSpotify) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+
+        const scaleSpotifyHeader = Math.min(1.0, headerHeight / 150);
+        if (headerHeight > 40) {
+          ctx.font = `bold ${Math.max(10, Math.floor(15 * scaleSpotifyHeader))}px "JetBrains Mono", monospace`;
+          ctx.fillText('Spotify PHOTOSTRIP #2', canvas.width / 2, headerHeight * 0.5);
+        }
+
+        const scaleSpotify = Math.min(1.0, footerHeight / 210);
+
+        if (footerHeight > 40) {
+          const spotifyY = photoMaxY;
+
+          // Track Details & Icon badge
+          if (footerHeight > 100) {
+            ctx.save();
+            ctx.fillStyle = '#1DB954';
+            ctx.beginPath();
+            const iconX = 55;
+            const iconY = spotifyY + footerHeight * 0.22;
+            ctx.arc(iconX, iconY, Math.max(10, 20 * scaleSpotify), 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = Math.max(1.5, 3 * scaleSpotify);
+            ctx.lineCap = 'round';
+            ctx.beginPath(); 
+            ctx.arc(iconX - 2 * scaleSpotify, iconY + 2 * scaleSpotify, 11 * scaleSpotify, -Math.PI * 0.45, -Math.PI * 0.05);
+            ctx.stroke();
+            ctx.beginPath(); 
+            ctx.arc(iconX - 2 * scaleSpotify, iconY + 2 * scaleSpotify, 7 * scaleSpotify, -Math.PI * 0.45, -Math.PI * 0.05);
+            ctx.stroke();
+            ctx.restore();
+
+            // Track Details
+            ctx.textAlign = 'left';
+            ctx.font = `bold ${Math.max(12, Math.floor(24 * scaleSpotify))}px "Inter", sans-serif`;
+            ctx.fillText(textVal, 95, spotifyY + footerHeight * 0.2);
+            ctx.font = `500 ${Math.max(8, Math.floor(16 * scaleSpotify))}px "Inter", sans-serif`;
+            ctx.fillStyle = '#B3B3B3';
+            ctx.fillText('My Favorites — Digital Souvenir', 95, spotifyY + footerHeight * 0.32);
+          }
+
+          // Bar Seeker
+          if (footerHeight > 130) {
+            const barStartX = 55;
+            const barWidth = canvas.width - 110;
+            const barY = spotifyY + footerHeight * 0.52;
+            
+            ctx.fillStyle = '#2F2F2F';
+            ctx.fillRect(barStartX, barY, barWidth, 6);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(barStartX, barY, barWidth * 0.45, 6);
+            
+            ctx.beginPath();
+            ctx.arc(barStartX + barWidth * 0.45, barY + 3, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = `${Math.max(8, Math.floor(12 * scaleSpotify))}px "JetBrains Mono", monospace`;
+            ctx.fillStyle = '#B3B3B3';
+            ctx.textAlign = 'left';
+            ctx.fillText('0:45', barStartX, barY + Math.max(12, 18 * scaleSpotify));
+            ctx.textAlign = 'right';
+            ctx.fillText('3:18', barStartX + barWidth, barY + Math.max(12, 18 * scaleSpotify));
+          }
+
+          // Media Buttons
+          if (footerHeight > 175) {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = `${Math.max(18, Math.floor(36 * scaleSpotify))}px "Inter", sans-serif`;
+            ctx.fillText('⏮   ⏸   ⏭', canvas.width / 2, spotifyY + footerHeight * 0.82);
+          }
+        }
+      }
+
+      if (isWedding) {
+        ctx.strokeStyle = '#dfba6b';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+        ctx.strokeStyle = '#c5a059';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(25, 25, canvas.width - 50, canvas.height - 50);
+
+        const scaleWedding = Math.min(1.0, footerHeight / 190);
+        ctx.textAlign = 'center';
+
+        if (footerHeight > 55) {
+          ctx.fillStyle = '#dfba6b';
+          ctx.font = `italic bold ${Math.max(18, Math.floor(44 * scaleWedding))}px "Georgia", serif`;
+          ctx.fillText(settings.brandingText || 'Darrell & Taforey', canvas.width / 2, photoMaxY + footerHeight * 0.25);
+        }
+
+        // Heart traces
+        if (footerHeight > 115) {
+          ctx.save();
+          ctx.strokeStyle = '#dfba6b';
+          ctx.fillStyle = '#dfba6b';
+          ctx.lineWidth = 2.5;
+
+          const drawCanvasHeart = (x: number, y: number, size: number) => {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.bezierCurveTo(x - size/2, y - size/2, x - size, y + size/3, x, y + size);
+            ctx.bezierCurveTo(x + size, y + size/3, x + size/2, y - size/2, x, y);
+            ctx.stroke();
+          };
+
+          const heartSize = Math.max(10, 20 * scaleWedding);
+          const heartY = photoMaxY + footerHeight * 0.52;
+          drawCanvasHeart(canvas.width / 2 - heartSize, heartY, heartSize);
+          drawCanvasHeart(canvas.width / 2 + heartSize, heartY, heartSize);
+          ctx.restore();
+        }
+
+        if (footerHeight > 155) {
+          ctx.font = `${Math.max(10, Math.floor(15 * scaleWedding))}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = '#A89269';
+          ctx.fillText(new Date().toLocaleDateString() + ' • ' + '#WeddingDay', canvas.width / 2, photoMaxY + footerHeight * 0.8);
+        }
+      }
+
+      ctx.restore();
+    };
+
+    drawPremiumPreset();
+
+    // Draw Branding at Top if configured and NOT using preset
+    if (!isPresetActive) {
+      if (hasTopText) {
+        drawBrandingText(65, true);
+      }
+      if (hasBottomText) {
+        drawBrandingText(canvas.height - 80, false);
+      }
+    }
+
+    // Overlay full transparent custom frames standard overlays if using 'overlay' mode
+    if (settings.customBgImage && settings.customBgMode === 'overlay') {
+      await new Promise<void>((resolve) => {
+        const bgImg = new Image();
+        bgImg.onload = () => {
+          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+          resolve();
+        };
+        bgImg.onerror = () => {
+          resolve();
+        };
+        bgImg.src = settings.customBgImage!;
+      });
+    }
 
     const resultDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
     setFinalImage(resultDataUrl);
-    setState('preview');
+    if (state !== 'preview' && state !== 'done') {
+      setState('preview');
+    }
 
     return resultDataUrl;
   };
@@ -564,6 +1521,22 @@ export default function App() {
       });
     }
   }, [state]);
+
+  // Dynamically update the compiled finalImage baseline when color, text, corners or custom background change in preview
+  useEffect(() => {
+    if (state === 'preview' && frames.length > 0) {
+      processImages(frames, false);
+    }
+  }, [
+    settings.filter,
+    settings.frameColor,
+    settings.brandingText,
+    settings.brandingPosition,
+    settings.roundedPhotos,
+    settings.photoCornerRadius,
+    settings.customBgImage,
+    state
+  ]);
 
   const handleDownload = (overrideImg?: string) => {
     const targetImg = overrideImg || finalImage;
@@ -750,9 +1723,15 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                        {(cfg.id === '4x6_single_l' || cfg.id === 'single') && (
+                        {cfg.id === '4x6_single_l' && (
                           <div className="flex flex-col h-full w-full">
                             <div className="flex-1 bg-slate-200 rounded-sm" />
+                          </div>
+                        )}
+                        {cfg.id === 'single' && (
+                          <div className="flex flex-col h-full w-full justify-between items-center py-0.5">
+                            <div className="w-9 h-9 bg-slate-200 rounded-sm shrink-0" />
+                            <div className="h-0.5 w-[18px] bg-slate-300 rounded-sm shrink-0 mt-auto" />
                           </div>
                         )}
                         {cfg.id === '4x6_triple' && (
@@ -835,7 +1814,7 @@ export default function App() {
       case 'capturing':
         return (
           <div className={cn(
-            "relative h-full flex flex-col items-center justify-center p-4 md:p-8 xl:p-12 transition-transform duration-100 max-h-screen overflow-y-auto bg-slate-50/20",
+            "relative min-h-[calc(100vh-6rem)] w-full flex flex-col items-center justify-start p-4 md:p-8 xl:p-12 transition-all duration-300 overflow-y-auto bg-slate-50/20 pb-20",
             isShaking && "shake"
           )}>
             {/* Beautiful Outside Countdown Panel */}
@@ -941,10 +1920,16 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="absolute top-4 right-4 md:top-10 md:right-10 flex gap-4">
+              <div className="absolute top-4 right-4 md:top-10 md:right-10 flex flex-col items-end gap-2 md:gap-3">
                 <div className="px-3 py-1.5 md:px-5 md:py-2.5 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-bold text-[10px] md:text-sm uppercase tracking-widest">
                   SHOT {currentShot + 1} of {settings.shotCount}
                 </div>
+                {isDemoCamera && (
+                  <div className="px-3 py-1 md:px-4 md:py-1.5 rounded-full bg-emerald-500/25 backdrop-blur-xl border border-emerald-400/30 text-emerald-300 font-extrabold text-[9px] md:text-[11px] uppercase tracking-widest animate-pulse flex items-center gap-1.5 shadow-lg">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 block shrink-0 animate-ping" />
+                    <span>SIMULATED FEED</span>
+                  </div>
+                )}
               </div>
 
               <AnimatePresence mode="wait">
@@ -1045,7 +2030,12 @@ export default function App() {
           </div>
         );
 
-      case 'preview':
+      case 'preview': {
+        let currentLayout = settings.layout;
+        if (currentLayout === '1x4') currentLayout = '2x6_4';
+        else if (currentLayout === '2x2') currentLayout = '4x6_6';
+        const activeLayout = LAYOUT_CONFIGS.find(c => c.id === currentLayout) || LAYOUT_CONFIGS[1];
+
         return (
           <motion.div 
             initial={{ opacity: 0 }} 
@@ -1057,32 +2047,24 @@ export default function App() {
               <div className="min-h-full w-full flex flex-col items-center p-4 md:p-12">
                 <div 
                   id="live-composite"
-                  className="relative shadow-2xl transition-all duration-500 p-4 md:p-6 flex flex-col items-center gap-4 md:gap-6 bg-white shrink-0"
-                  style={{ backgroundColor: settings.frameColor }}
+                  className="relative shadow-2xl transition-all duration-500 overflow-hidden shrink-0 border border-slate-200"
+                  style={{ 
+                    backgroundColor: settings.frameColor,
+                    width: activeLayout.id.startsWith('2x6') ? '240px' : '420px',
+                    aspectRatio: `${activeLayout.canvasWidth}/${activeLayout.canvasHeight}`
+                  }}
                 >
-                  <div className={getLayoutGridStyles(settings.layout).className}>
-                    {frames.map((f) => (
-                      <div key={f.id} className={cn("relative overflow-hidden shadow-inner bg-slate-50 transition-all duration-300", getLayoutGridStyles(settings.layout).itemAspect)}>
-                        <img 
-                          src={f.dataUrl} 
-                          className={cn(
-                            "w-full h-full object-cover",
-                            settings.filter === 'bw' && "grayscale contrast-125",
-                            settings.filter === 'vintage' && "sepia brightness-90 contrast-110",
-                            settings.filter === 'vivid' && "saturate-200 contrast-110"
-                          )}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="text-center space-y-1 py-4">
-                     <div className={cn(
-                       "text-2xl font-black italic tracking-tighter",
-                       settings.frameColor === '#1a1a1a' || settings.frameColor === '#800000' || settings.frameColor === '#800020' ? 'text-white' : 'text-slate-900'
-                     )}>FLASHBOOTH</div>
-                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date().toLocaleDateString()}</div>
-                  </div>
+                  {finalImage ? (
+                    <img 
+                      src={finalImage} 
+                      className="w-full h-full object-contain select-none pointer-events-none" 
+                      alt="Compiled photostrip composite"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 font-mono text-xs animate-pulse">
+                      Generating high-res print...
+                    </div>
+                  )}
 
                   {/* Stickers Layer */}
                   <div id="preview-container" className="absolute inset-0 pointer-events-none">
@@ -1107,7 +2089,7 @@ export default function App() {
                         style={{ 
                           left: `${s.x * 100}%`, 
                           top: `${s.y * 100}%`, 
-                          fontSize: `${60 * s.scale}px`,
+                          fontSize: `${(activeLayout.id.startsWith('2x6') ? 36 : 64) * s.scale * (containerWidth / (activeLayout.id.startsWith('2x6') ? 240 : 420))}px`,
                           transform: `translate(-50%, -50%) rotate(${s.rotation}deg)` 
                         }}
                       >
@@ -1127,40 +2109,283 @@ export default function App() {
 
             {/* Editing Panel */}
             <div className="lg:col-span-5 flex flex-col gap-6 lg:overflow-y-auto pr-2 pb-10 lg:pb-0 shrink-0">
-              <div className="bento-card p-4 md:p-6 space-y-6 shrink-0">
-                <div>
-                   <h3 className="text-sm font-black uppercase italic tracking-widest text-slate-400 mb-4">01. STYLE</h3>
-                   <div className="space-y-4">
-                      <Select 
-                        value={settings.filter} 
-                        onValueChange={(v: FilterType) => setSettings({ ...settings, filter: v })}
-                      >
-                        <SelectTrigger className="w-full h-12 border-2 border-slate-100 rounded-xl font-bold">
-                          <SelectValue placeholder="Filter" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">NATURAL</SelectItem>
-                          <SelectItem value="bw">B&W</SelectItem>
-                          <SelectItem value="vintage">VINTAGE</SelectItem>
-                          <SelectItem value="vivid">VIVID</SelectItem>
-                        </SelectContent>
-                      </Select>
+              {/* 01. STYLE */}
+              <div className="bento-card p-4 md:p-6 space-y-4 shrink-0">
+                <h3 className="text-sm font-black uppercase italic tracking-widest text-slate-400">01. STYLE</h3>
+                <div className="space-y-4">
+                  <Select 
+                    value={settings.filter} 
+                    onValueChange={(v: FilterType) => setSettings({ ...settings, filter: v })}
+                  >
+                    <SelectTrigger className="w-full h-12 border-2 border-slate-100 rounded-xl font-bold">
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">NATURAL</SelectItem>
+                      <SelectItem value="bw">B&W</SelectItem>
+                      <SelectItem value="vintage">VINTAGE</SelectItem>
+                      <SelectItem value="vivid">VIVID</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                      <div className="flex flex-wrap gap-3">
-                        {FRAME_COLORS.map((c) => (
-                          <button
-                            key={c.value}
-                            onClick={() => setSettings({ ...settings, frameColor: c.value })}
-                            className={cn(
-                              "w-10 h-10 md:w-12 md:h-12 rounded-full border-2 transition-all hover:scale-110",
-                              settings.frameColor === c.value ? "border-blue-500 ring-2 ring-offset-2 ring-blue-500/30 scale-110" : "border-slate-200"
-                            )}
-                            style={{ backgroundColor: c.value }}
-                            title={c.name}
-                          />
-                        ))}
+                  <div className="flex flex-wrap gap-3">
+                    {FRAME_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        onClick={() => setSettings({ ...settings, frameColor: c.value, customBgImage: null })}
+                        className={cn(
+                          "w-10 h-10 md:w-12 md:h-12 rounded-full border-2 transition-all hover:scale-110",
+                          settings.frameColor === c.value && !settings.customBgImage ? "border-blue-500 ring-2 ring-offset-2 ring-blue-500/30 scale-110" : "border-slate-200"
+                        )}
+                        style={{ backgroundColor: c.value }}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 02. BRANDING */}
+              <div className="bento-card p-4 md:p-6 space-y-4 shrink-0">
+                <h3 className="text-sm font-black uppercase italic tracking-widest text-slate-400">02. BRANDING</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Branding Text</label>
+                    <input
+                      type="text"
+                      value={settings.brandingText || ''}
+                      onChange={(e) => setSettings({ ...settings, brandingText: e.target.value })}
+                      placeholder="e.g. MEMORIES"
+                      className="w-full h-12 px-4 rounded-xl border-2 border-slate-100 hover:border-slate-200 focus:border-blue-500 focus:outline-none font-medium text-slate-800 tracking-wide transition-all"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">Text Alignment Location</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['top', 'bottom', 'both', 'none'] as const).map((pos) => (
+                        <Button
+                          key={pos}
+                          variant={settings.brandingPosition === pos ? "default" : "outline"}
+                          onClick={() => setSettings({ ...settings, brandingPosition: pos })}
+                          className={cn(
+                            "h-10 text-[10px] font-black uppercase italic rounded-lg px-0",
+                            settings.brandingPosition === pos ? "bg-blue-600 hover:bg-blue-700 text-white" : "border-slate-200 text-slate-600 bg-white"
+                          )}
+                        >
+                          {pos}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 03. PHOTO EDGES */}
+              <div className="bento-card p-4 md:p-6 space-y-4 shrink-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black uppercase italic tracking-widest text-slate-400">03. PHOTO EDGES</h3>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={!!settings.roundedPhotos} 
+                      onChange={(e) => setSettings({ ...settings, roundedPhotos: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                
+                {settings.roundedPhotos && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                      <span>CORNER ROUNDING RADIUS</span>
+                      <span className="font-mono">{settings.photoCornerRadius ?? 24}PX</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="48"
+                      value={settings.photoCornerRadius ?? 24}
+                      onChange={(e) => setSettings({ ...settings, photoCornerRadius: parseInt(e.target.value) })}
+                      className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 04. PREMIUM DESIGNS & OVERLAYS */}
+              <div className="bento-card p-4 md:p-6 space-y-5 shrink-0">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black uppercase italic tracking-widest text-slate-400">04. PRESET THEMES & OVERLAYS</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Choose a signature design style or upload your own PNG frame template.</p>
+                </div>
+
+                {/* Preset Themes List */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">AESTHETIC PRESET</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={(!settings.selectedPresetTemplate || settings.selectedPresetTemplate === 'none') ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'none' })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        (!settings.selectedPresetTemplate || settings.selectedPresetTemplate === 'none') ? "bg-slate-900 border-transparent text-white" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      🎨 SOLID CANVAS
+                    </Button>
+                    <Button
+                      variant={settings.selectedPresetTemplate === 'retro-ticket' ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'retro-ticket', roundedPhotos: true })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        settings.selectedPresetTemplate === 'retro-ticket' ? "bg-red-950 border-transparent text-red-100 ring-2 ring-red-800" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      🎟️ RETRO TICKET
+                    </Button>
+                    <Button
+                      variant={settings.selectedPresetTemplate === 'saycheese-receipt' ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'saycheese-receipt', roundedPhotos: false })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        settings.selectedPresetTemplate === 'saycheese-receipt' ? "bg-slate-700 border-transparent text-white ring-2 ring-slate-800" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      🧾 RECIBO/RECEIPT
+                    </Button>
+                    <Button
+                      variant={settings.selectedPresetTemplate === 'spotify' ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'spotify', roundedPhotos: true, photoCornerRadius: 24 })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        settings.selectedPresetTemplate === 'spotify' ? "bg-green-950 border-transparent text-green-300 ring-2 ring-green-600" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      🎵 SPOTIFY SONG
+                    </Button>
+                    <Button
+                      variant={settings.selectedPresetTemplate === 'wedding-blue' ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'wedding-blue', roundedPhotos: false, brandingText: 'Darrell & Taforey' })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        settings.selectedPresetTemplate === 'wedding-blue' ? "bg-blue-950 border-transparent text-amber-200 ring-2 ring-amber-500" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      💙 ROYAL GOLD
+                    </Button>
+                    <Button
+                      variant={settings.selectedPresetTemplate === 'exclusive' ? "default" : "outline"}
+                      onClick={() => setSettings({ ...settings, selectedPresetTemplate: 'exclusive', roundedPhotos: true, photoCornerRadius: 12 })}
+                      className={cn(
+                        "h-11 justify-start px-3 text-xs font-bold rounded-xl",
+                        settings.selectedPresetTemplate === 'exclusive' ? "bg-stone-900 border-transparent text-white ring-2 ring-stone-800" : "border-slate-100 text-slate-600 bg-white hover:bg-slate-50"
+                      )}
+                    >
+                      💎 EXCLUSIVE TALL
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">UPLOAD USER DESIGN</label>
+                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-mono">PNG / JPG</span>
+                  </div>
+
+                  {settings.customBgImage ? (
+                    <div className="space-y-3">
+                      <div className="relative w-full h-24 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
+                        <img 
+                          src={settings.customBgImage} 
+                          className="max-w-full max-h-full object-contain" 
+                          alt="Custom template design override"
+                        />
+                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-all gap-1.5 p-2">
+                          <p className="text-[10px] text-white font-black uppercase tracking-wider">Loaded Custom Design</p>
+                          <Button 
+                            onClick={() => setSettings({ ...settings, customBgImage: null })}
+                            variant="destructive"
+                            size="sm"
+                            className="rounded-xl h-8 px-3 text-[10px] font-black uppercase"
+                          >
+                            <Trash2 className="w-3 h-3 mr-1" /> REMOVE
+                          </Button>
+                        </div>
                       </div>
-                   </div>
+
+                      {/* Photo Overlay vs Background Switch */}
+                      <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">TEMPLATE LEVEL</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant={settings.customBgMode !== 'overlay' ? "default" : "outline"}
+                            onClick={() => setSettings({ ...settings, customBgMode: 'background' })}
+                            className={cn(
+                              "h-8 text-[10px] font-bold uppercase rounded-lg",
+                              settings.customBgMode !== 'overlay' ? "bg-blue-600 text-white" : "border-slate-200 text-slate-500 bg-white"
+                            )}
+                          >
+                            BACKGROUND LAYER
+                          </Button>
+                          <Button
+                            variant={settings.customBgMode === 'overlay' ? "default" : "outline"}
+                            onClick={() => setSettings({ ...settings, customBgMode: 'overlay' })}
+                            className={cn(
+                              "h-8 text-[10px] font-bold uppercase rounded-lg",
+                              settings.customBgMode === 'overlay' ? "bg-blue-600 text-white" : "border-slate-200 text-slate-500 bg-white"
+                            )}
+                            title="Draws custom image on top of the photos - useful if your PNG has transparent window cutouts!"
+                          >
+                            OVERLAY WINDOWS
+                          </Button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 leading-tight">Use <b>Overlay Windows</b> if your uploaded PNG has cutout transparent rectangles to frame the camera photos inside!</p>
+                      </div>
+
+                      <Button 
+                        onClick={() => setSettings({ ...settings, customBgImage: null })}
+                        variant="outline" 
+                        className="w-full text-slate-500 border-slate-200 flex items-center justify-center h-10 text-xs font-bold rounded-xl"
+                      >
+                        Reset to Preset Colors
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-28 bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-blue-400 transition-all">
+                      <div className="flex flex-col items-center justify-center text-center p-4">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-full mb-1">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-600">Click or Drag custom template image here</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wider font-mono">Accepts transparent .PNG frame overlays</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (re) => {
+                              // Automatically switch customBgMode to 'overlay' if png to assist users
+                              const isPng = file.type === 'image/png';
+                              setSettings({ 
+                                ...settings, 
+                                customBgImage: re.target?.result as string,
+                                customBgMode: isPng ? 'overlay' : 'background',
+                                selectedPresetTemplate: 'none' // Clear prebuilt preset to prefer uploaded custom layout
+                              });
+                              toast.success("Uploaded custom layout design frame successfully!");
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -1206,6 +2431,7 @@ export default function App() {
             </div>
           </motion.div>
         );
+      }
 
       case 'done':
         return (

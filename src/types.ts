@@ -29,6 +29,13 @@ export interface BoothSettings {
   shotCount: number;
   frameColor: string;
   timerDuration: number;
+  brandingText?: string;
+  brandingPosition?: 'top' | 'bottom' | 'both' | 'none';
+  roundedPhotos?: boolean;
+  photoCornerRadius?: number;
+  customBgImage?: string | null;
+  customBgMode?: 'background' | 'overlay';
+  selectedPresetTemplate?: 'none' | 'retro-ticket' | 'exclusive' | 'saycheese-receipt' | 'spotify' | 'wedding-blue';
 }
 
 export interface StickerInstance {
